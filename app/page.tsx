@@ -2,6 +2,7 @@ import { HeadlineTiles } from "@/components/HeadlineTiles";
 import { GoldSignalPanel } from "@/components/GoldSignalPanel";
 import { FXContext } from "@/components/FXContext";
 import { REERPanel } from "@/components/REERPanel";
+import { Footer } from "@/components/Footer";
 
 export default function Home() {
   return (
@@ -19,6 +20,8 @@ export default function Home() {
         <FXContext />
         <REERPanel />
       </div>
+
+      <Footer />
     </main>
   );
 }
