@@ -1,0 +1,29 @@
+import { NextResponse } from "next/server";
+import { fetchGold, type DailyPoint, type YahooRange } from "@/lib/fetchers";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+export type GoldResponse = {
+  gold: DailyPoint[];
+  range: YahooRange;
+  fetchedAt: string;
+};
+
+export async function GET(req: Request): Promise<NextResponse> {
+  const url = new URL(req.url);
+  const range = (url.searchParams.get("range") ?? "1y") as YahooRange;
+
+  try {
+    const gold = await fetchGold(range);
+    const body: GoldResponse = {
+      gold,
+      range,
+      fetchedAt: new Date().toISOString(),
+    };
+    return NextResponse.json(body);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "unknown error";
+    return NextResponse.json({ error: msg }, { status: 502 });
+  }
+}
