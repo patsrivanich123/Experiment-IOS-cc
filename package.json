@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test:data": "tsx scripts/test-data.ts",
-    "screenshot": "tsx scripts/screenshot.ts"
+    "screenshot": "tsx scripts/screenshot.ts",
+    "gen:icons": "tsx scripts/gen-icons.ts"
   },
   "dependencies": {
     "next": "14.2.15",
