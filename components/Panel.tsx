@@ -13,12 +13,22 @@ type PanelProps = {
 
 export function Panel({ title, subtitle, right, children }: PanelProps) {
   return (
-    <section className="rounded-2xl border border-border bg-panel p-4 shadow-sm">
-      <header className="mb-3 flex items-start justify-between gap-3">
+    <section
+      className="
+        relative overflow-hidden rounded-[28px] border border-border-soft
+        bg-gradient-to-b from-panel-2 to-panel
+        p-5 shadow-card
+      "
+    >
+      <header className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold leading-tight">{title}</h2>
+          <h2 className="text-[15px] font-semibold leading-tight text-text">
+            {title}
+          </h2>
           {subtitle && (
-            <p className="mt-0.5 text-xs text-muted leading-snug">{subtitle}</p>
+            <p className="mt-1 text-[12.5px] leading-snug text-muted">
+              {subtitle}
+            </p>
           )}
         </div>
         {right && <div className="shrink-0 text-right">{right}</div>}
@@ -31,7 +41,7 @@ export function Panel({ title, subtitle, right, children }: PanelProps) {
 export function PanelSkeleton({ height = 160 }: { height?: number }) {
   return (
     <div
-      className="animate-pulse rounded-md bg-border/40"
+      className="animate-pulse rounded-2xl bg-border/30"
       style={{ height }}
       aria-hidden="true"
     />
@@ -40,8 +50,8 @@ export function PanelSkeleton({ height = 160 }: { height?: number }) {
 
 export function PanelError({ message }: { message: string }) {
   return (
-    <div className="rounded-md border border-down/40 bg-down/10 px-3 py-2 text-sm text-down">
-      Failed to load: {message}
+    <div className="rounded-xl border border-down/30 bg-down-soft px-3.5 py-2.5 text-[13px] text-down">
+      <span className="font-medium">Failed to load:</span> {message}
     </div>
   );
 }

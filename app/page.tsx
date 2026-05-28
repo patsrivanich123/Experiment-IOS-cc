@@ -7,18 +7,25 @@ import { Footer } from "@/components/Footer";
 export default function Home() {
   return (
     <main
-      className="mx-auto max-w-screen-sm px-4 pt-5 pb-10"
+      className="mx-auto max-w-screen-sm px-4 pb-12"
       style={{
-        // Respect the iPhone notch / Dynamic Island when launched fullscreen
-        // from the home screen (apple-mobile-web-app-capable).
-        paddingTop: "calc(env(safe-area-inset-top) + 1.25rem)",
-        paddingBottom: "calc(env(safe-area-inset-bottom) + 2.5rem)",
+        paddingTop: "calc(env(safe-area-inset-top) + 1.5rem)",
+        paddingBottom: "calc(env(safe-area-inset-bottom) + 3rem)",
       }}
     >
-      <header className="mb-5">
-        <h1 className="text-xl font-semibold leading-tight">THB Dashboard</h1>
-        <p className="mt-1 text-xs text-muted">
-          Macro signals for the Thai baht.
+      <header className="mb-7">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-accent/20 to-violet/20 ring-1 ring-accent/30">
+            <span className="text-[15px] font-semibold leading-none text-accent">
+              ฿
+            </span>
+          </div>
+          <h1 className="text-[20px] font-semibold leading-none tracking-tight">
+            THB Dashboard
+          </h1>
+        </div>
+        <p className="mt-2 text-[12.5px] leading-relaxed text-muted-soft">
+          Macro signals for the Thai baht. Updated on every refresh.
         </p>
       </header>
 

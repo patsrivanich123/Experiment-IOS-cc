@@ -2,13 +2,43 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  color-scheme: dark;
+}
+
 html,
 body {
-  background-color: #0b0d12;
-  color: #e6e9ef;
+  background-color: #08090d;
+  color: #eaecf2;
 }
 
 body {
-  font-feature-settings: "rlig" 1, "calt" 1;
+  font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1, "tnum" 1;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Subtle aurora glow at the top of the viewport — gives the dark theme
+   a hint of warmth without dominating. Fixed-positioned so it sticks
+   when scrolling. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -10% -10% auto -10%;
+  height: 380px;
+  background:
+    radial-gradient(60% 60% at 30% 0%, rgba(125, 211, 252, 0.10), transparent 70%),
+    radial-gradient(50% 60% at 80% 0%, rgba(167, 139, 250, 0.08), transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+main {
+  position: relative;
+  z-index: 1;
+}
+
+/* Recharts tooltip default has a white box on dark theme — kill it. */
+.recharts-tooltip-wrapper {
+  outline: none !important;
 }

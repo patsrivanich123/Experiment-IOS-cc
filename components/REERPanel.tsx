@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import {
   ResponsiveContainer,
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
@@ -44,16 +44,16 @@ export function REERPanel() {
 
   return (
     <Panel
-      title="THB Real Effective Exchange Rate"
-      subtitle="Monthly index, base 2020 = 100. Higher = baht overvalued in real terms."
+      title="Real Effective Exchange Rate"
+      subtitle="Monthly index, base 2020 = 100 · ↑ = baht overvalued in real terms"
       right={
-        <span className="rounded-md bg-accent/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent">
+        <span className="rounded-full bg-accent/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-accent ring-1 ring-accent/30">
           stub
         </span>
       }
     >
       {error && <PanelError message={error} />}
-      {!error && !data && <PanelSkeleton height={200} />}
+      {!error && !data && <PanelSkeleton height={220} />}
       {!error && data && <Body data={data} />}
     </Panel>
   );
@@ -64,57 +64,79 @@ function Body({ data }: { data: ReerResponse }) {
 
   return (
     <div>
-      <div className="mb-2 flex items-baseline justify-between">
-        <div className="text-2xl font-semibold tabular-nums">
-          {latest ? fmtNum(latest.value, 1) : "—"}
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <div>
+          <div className="font-mono text-[40px] font-semibold leading-none tracking-tightest text-text">
+            {latest ? fmtNum(latest.value, 1) : "—"}
+          </div>
+          <div className="mt-1.5 text-[11px] uppercase tracking-wider text-muted-soft">
+            {latest ? `as of ${shortMonth(latest.date)}` : "—"}
+          </div>
         </div>
-        {latest && (
-          <div className="text-xs text-muted">as of {shortMonth(latest.date)}</div>
-        )}
       </div>
 
-      <div className="h-44 w-full">
+      <div className="-mx-1 h-44 w-[calc(100%+0.5rem)]">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart
+          <AreaChart
             data={data.series}
             margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
           >
-            <CartesianGrid stroke="#1f2430" strokeDasharray="3 3" />
+            <defs>
+              <linearGradient id="reerFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#34d399" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke="#161a23" strokeDasharray="2 4" vertical={false} />
             <XAxis
               dataKey="date"
               tickFormatter={shortMonth}
-              tick={{ fill: "#8a93a6", fontSize: 10 }}
+              tick={{ fill: "#7a8294", fontSize: 10 }}
+              tickLine={false}
+              axisLine={false}
               minTickGap={28}
-              stroke="#1f2430"
             />
             <YAxis
               domain={["auto", "auto"]}
-              tick={{ fill: "#8a93a6", fontSize: 10 }}
-              width={40}
-              stroke="#1f2430"
+              tick={{ fill: "#7a8294", fontSize: 10 }}
+              tickLine={false}
+              axisLine={false}
+              width={38}
             />
             <Tooltip
+              cursor={{ stroke: "#2a3142", strokeWidth: 1 }}
               contentStyle={{
-                background: "#11141b",
+                background: "#10131a",
                 border: "1px solid #1f2430",
+                borderRadius: 12,
                 fontSize: 12,
+                boxShadow: "0 8px 24px -12px rgba(0,0,0,0.6)",
               }}
+              labelStyle={{ color: "#7a8294", fontSize: 11 }}
               labelFormatter={shortMonth}
-              formatter={(v: number) => fmtNum(v, 2)}
+              formatter={(v: number) => [fmtNum(v, 2), "REER"]}
             />
-            <ReferenceLine y={100} stroke="#8a93a6" strokeDasharray="4 4" />
-            <Line
+            <ReferenceLine
+              y={100}
+              stroke="#525a6b"
+              strokeDasharray="4 4"
+              strokeWidth={1}
+              label={{ value: "100", fill: "#525a6b", fontSize: 9, position: "right" }}
+            />
+            <Area
               type="monotone"
               dataKey="value"
               stroke="#34d399"
               strokeWidth={2}
+              fill="url(#reerFill)"
               dot={false}
+              activeDot={{ r: 4, fill: "#34d399", stroke: "#10131a", strokeWidth: 2 }}
             />
-          </LineChart>
+          </AreaChart>
         </ResponsiveContainer>
       </div>
 
-      <p className="mt-3 text-xs text-muted">{data.note}</p>
+      <p className="mt-3 text-[11px] leading-relaxed text-muted-soft">{data.note}</p>
     </div>
   );
 }

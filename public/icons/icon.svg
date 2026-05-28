@@ -1,18 +1,53 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- App icon: stylized THB ฿ symbol on a dark rounded background, accent ring -->
+  <!--
+    App icon — bold, recognizable at small sizes.
+    Vivid sky→violet gradient (matches the dashboard's accent + violet),
+    bold white ฿ as the lockup, and a subtle upward chart trace
+    silhouetted behind it so the icon reads as a markets/data app at a glance.
+  -->
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#11141b"/>
-      <stop offset="1" stop-color="#0b0d12"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0ea5e9"/>
+      <stop offset="55%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#a855f7"/>
     </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
   </defs>
-  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
-  <circle cx="256" cy="256" r="190" fill="none" stroke="#60a5fa" stroke-width="6" opacity="0.55"/>
-  <text x="256" y="256"
-        font-family="ui-sans-serif, -apple-system, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif"
-        font-weight="700"
+
+  <!-- Rounded-square base (iOS-app style superellipse-ish via large rx). -->
+  <rect width="512" height="512" rx="115" fill="url(#bg)"/>
+  <!-- Top sheen for that glassy depth. -->
+  <rect width="512" height="280" rx="115" fill="url(#sheen)"/>
+
+  <!-- Subtle chart trace behind the glyph — bullish wave, suggests price action. -->
+  <g opacity="0.30" filter="url(#glow)">
+    <polyline
+      points="60,360 110,330 160,348 210,300 260,318 310,260 360,275 410,210 460,235"
+      fill="none"
+      stroke="#ffffff"
+      stroke-width="10"
+      stroke-linecap="round"
+      stroke-linejoin="round"/>
+    <circle cx="460" cy="235" r="10" fill="#ffffff"/>
+  </g>
+
+  <!-- The ฿ lockup. -->
+  <text x="256" y="266"
+        font-family="ui-sans-serif, -apple-system, 'SF Pro Display', 'Helvetica Neue', sans-serif"
+        font-weight="800"
         font-size="320"
-        fill="#e6e9ef"
+        fill="#ffffff"
         text-anchor="middle"
-        dominant-baseline="central">฿</text>
+        dominant-baseline="central"
+        style="paint-order: stroke fill;">฿</text>
 </svg>

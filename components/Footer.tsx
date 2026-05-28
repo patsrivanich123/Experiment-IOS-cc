@@ -17,7 +17,6 @@ export function Footer() {
 
     const ping = async (): Promise<void> => {
       try {
-        // /api/reer is server-rendered and effectively free — good heartbeat.
         const r = await fetch("/api/reer", { cache: "no-store" });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         await r.json();
@@ -45,26 +44,35 @@ export function Footer() {
     ? lastRefresh.toLocaleTimeString("en-US", {
         hour: "2-digit",
         minute: "2-digit",
-        second: "2-digit",
       })
     : "—";
 
+  const live = lastRefresh != null && refreshError == null;
+
   return (
-    <footer className="mt-8 border-t border-border pt-4 text-xs text-muted">
-      <div className="flex items-baseline justify-between gap-2">
-        <span>
-          Last refresh:{" "}
-          <span className="font-mono text-text">{ts}</span>
-          {refreshError && (
-            <span className="ml-2 text-down">({refreshError})</span>
-          )}
-        </span>
+    <footer className="mt-10 border-t border-border-soft pt-5 text-[11.5px] text-muted-soft">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span
+            className={`inline-block h-1.5 w-1.5 rounded-full ${
+              live ? "bg-up" : "bg-down"
+            }`}
+            aria-hidden="true"
+          />
+          <span>
+            {live ? "Live" : "Stale"} · last refresh{" "}
+            <span className="font-mono text-text-dim">{ts}</span>
+          </span>
+        </div>
+        {refreshError && (
+          <span className="text-down">{refreshError}</span>
+        )}
       </div>
-      <div className="mt-2 leading-relaxed">
-        Sources: USD/THB — Frankfurter (ECB). DXY proxy / US 10Y / Brent — FRED
-        (St. Louis Fed). Gold (XAU/USD) — currency-api via jsdelivr CDN. REER —
-        stub data, BIS integration in v1.1. Not investment advice.
+      <div className="mt-3 leading-relaxed">
+        Data: USD/THB — Frankfurter (ECB) · DXY proxy / 10Y / Brent — FRED · Gold
+        — currency-api via jsDelivr · REER — stub.
       </div>
+      <div className="mt-1.5 text-muted-soft">Not investment advice.</div>
     </footer>
   );
 }

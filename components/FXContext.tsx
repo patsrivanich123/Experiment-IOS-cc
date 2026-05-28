@@ -5,11 +5,12 @@ import {
   ResponsiveContainer,
   LineChart,
   Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
   CartesianGrid,
-  Legend,
 } from "recharts";
 import type { FxResponse } from "@/app/api/fx/route";
 import type { RatesResponse } from "@/app/api/rates/route";
@@ -77,8 +78,8 @@ export function FXContext() {
 
   return (
     <Panel
-      title="FX Context — 1y"
-      subtitle="USD/THB with 20d & 60d MAs, DXY overlay, US 10Y mini-chart."
+      title="FX Context"
+      subtitle="1-year USD/THB with 20d & 60d trend, DXY overlay, US 10Y"
     >
       {error && <PanelError message={error} />}
       {!error && (!fx || !rates) && <PanelSkeleton height={300} />}
@@ -87,43 +88,67 @@ export function FXContext() {
   );
 }
 
+function LegendPill({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[10.5px] text-muted-soft">
+      <span className="h-0.5 w-3.5 rounded-full" style={{ background: color }} />
+      {label}
+    </span>
+  );
+}
+
 function Body({ fx, rates }: { fx: FxResponse; rates: RatesResponse }) {
   const rows = useMemo(() => buildRows(fx.usdThb, fx.dxy), [fx]);
 
   return (
     <div>
-      <div className="h-56 w-full">
+      <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+        <LegendPill color="#7dd3fc" label="USD/THB" />
+        <LegendPill color="#eaecf2" label="MA20" />
+        <LegendPill color="#525a6b" label="MA60" />
+        <LegendPill color="#fbbf24" label="DXY" />
+      </div>
+
+      <div className="-mx-1 h-56 w-[calc(100%+0.5rem)]">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={rows} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid stroke="#1f2430" strokeDasharray="3 3" />
+            <CartesianGrid stroke="#161a23" strokeDasharray="2 4" vertical={false} />
             <XAxis
               dataKey="date"
               tickFormatter={shortDate}
-              tick={{ fill: "#8a93a6", fontSize: 10 }}
+              tick={{ fill: "#7a8294", fontSize: 10 }}
+              tickLine={false}
+              axisLine={false}
               minTickGap={32}
-              stroke="#1f2430"
             />
             <YAxis
               yAxisId="thb"
               domain={["auto", "auto"]}
-              tick={{ fill: "#8a93a6", fontSize: 10 }}
-              width={42}
-              stroke="#1f2430"
+              tick={{ fill: "#7a8294", fontSize: 10 }}
+              tickLine={false}
+              axisLine={false}
+              width={40}
             />
             <YAxis
               yAxisId="dxy"
               orientation="right"
               domain={["auto", "auto"]}
-              tick={{ fill: "#8a93a6", fontSize: 10 }}
-              width={36}
-              stroke="#1f2430"
+              tick={{ fill: "#7a8294", fontSize: 10 }}
+              tickLine={false}
+              axisLine={false}
+              width={34}
+              tickFormatter={(v: number) => v.toFixed(0)}
             />
             <Tooltip
+              cursor={{ stroke: "#2a3142", strokeWidth: 1 }}
               contentStyle={{
-                background: "#11141b",
+                background: "#10131a",
                 border: "1px solid #1f2430",
+                borderRadius: 12,
                 fontSize: 12,
+                boxShadow: "0 8px 24px -12px rgba(0,0,0,0.6)",
               }}
+              labelStyle={{ color: "#7a8294", fontSize: 11 }}
               labelFormatter={(v: string) => shortDate(v)}
               formatter={(v, name) => {
                 const n = typeof v === "number" ? v : Number(v);
@@ -131,27 +156,25 @@ function Body({ fx, rates }: { fx: FxResponse; rates: RatesResponse }) {
                 return Number.isFinite(n) ? [fmtNum(n, 3), label] : ["—", label];
               }}
             />
-            <Legend
-              wrapperStyle={{ fontSize: 10, color: "#8a93a6" }}
-              iconType="plainline"
-            />
             <Line
               yAxisId="thb"
               type="monotone"
               dataKey="thb"
               name="USD/THB"
-              stroke="#60a5fa"
+              stroke="#7dd3fc"
               strokeWidth={2}
               dot={false}
+              activeDot={{ r: 4, fill: "#7dd3fc", stroke: "#10131a", strokeWidth: 2 }}
             />
             <Line
               yAxisId="thb"
               type="monotone"
               dataKey="thbMA20"
               name="MA20"
-              stroke="#e6e9ef"
+              stroke="#eaecf2"
+              strokeOpacity={0.55}
               strokeWidth={1}
-              strokeDasharray="3 3"
+              strokeDasharray="2 4"
               dot={false}
               connectNulls
             />
@@ -160,9 +183,9 @@ function Body({ fx, rates }: { fx: FxResponse; rates: RatesResponse }) {
               type="monotone"
               dataKey="thbMA60"
               name="MA60"
-              stroke="#8a93a6"
+              stroke="#525a6b"
               strokeWidth={1}
-              strokeDasharray="6 4"
+              strokeDasharray="4 4"
               dot={false}
               connectNulls
             />
@@ -171,7 +194,8 @@ function Body({ fx, rates }: { fx: FxResponse; rates: RatesResponse }) {
               type="monotone"
               dataKey="dxy"
               name="DXY"
-              stroke="#f59e0b"
+              stroke="#fbbf24"
+              strokeOpacity={0.85}
               strokeWidth={1.5}
               dot={false}
               connectNulls
@@ -180,49 +204,63 @@ function Body({ fx, rates }: { fx: FxResponse; rates: RatesResponse }) {
         </ResponsiveContainer>
       </div>
 
-      <div className="mt-4">
-        <div className="mb-1 flex items-baseline justify-between">
-          <h3 className="text-sm font-semibold">US 10Y yield</h3>
-          <div className="text-xs tabular-nums text-muted">
+      <div className="mt-5 rounded-2xl border border-border-soft bg-bg/40 p-3.5">
+        <div className="mb-1.5 flex items-baseline justify-between">
+          <h3 className="text-[12.5px] font-medium text-text-dim">
+            US 10-Year Treasury
+          </h3>
+          <div className="font-mono text-[14px] font-semibold tabular-nums text-text">
             {rates.us10y.length > 0
               ? `${rates.us10y[rates.us10y.length - 1].close.toFixed(2)}%`
               : "—"}
           </div>
         </div>
-        <div className="h-24 w-full">
+        <div className="-mx-1 h-20 w-[calc(100%+0.5rem)]">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={rates.us10y} margin={{ top: 2, right: 4, left: 0, bottom: 0 }}>
+            <AreaChart data={rates.us10y} margin={{ top: 2, right: 4, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="rateFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#a78bfa" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="#a78bfa" stopOpacity={0} />
+                </linearGradient>
+              </defs>
               <XAxis
                 dataKey="date"
                 tickFormatter={shortDate}
-                tick={{ fill: "#8a93a6", fontSize: 9 }}
+                tick={{ fill: "#7a8294", fontSize: 9 }}
+                tickLine={false}
+                axisLine={false}
                 minTickGap={40}
-                stroke="#1f2430"
               />
               <YAxis
                 domain={["auto", "auto"]}
-                tick={{ fill: "#8a93a6", fontSize: 9 }}
-                width={32}
-                stroke="#1f2430"
+                tick={{ fill: "#7a8294", fontSize: 9 }}
+                tickLine={false}
+                axisLine={false}
+                width={28}
                 tickFormatter={(v: number) => v.toFixed(1)}
               />
               <Tooltip
+                cursor={{ stroke: "#2a3142", strokeWidth: 1 }}
                 contentStyle={{
-                  background: "#11141b",
+                  background: "#10131a",
                   border: "1px solid #1f2430",
+                  borderRadius: 10,
                   fontSize: 11,
                 }}
+                labelStyle={{ color: "#7a8294", fontSize: 10 }}
                 labelFormatter={(v: string) => shortDate(v)}
-                formatter={(v: number) => `${v.toFixed(2)}%`}
+                formatter={(v: number) => [`${v.toFixed(2)}%`, "10Y"]}
               />
-              <Line
+              <Area
                 type="monotone"
                 dataKey="close"
                 stroke="#a78bfa"
-                strokeWidth={1.5}
+                strokeWidth={1.75}
+                fill="url(#rateFill)"
                 dot={false}
               />
-            </LineChart>
+            </AreaChart>
           </ResponsiveContainer>
         </div>
       </div>
