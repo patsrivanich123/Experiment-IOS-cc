@@ -40,7 +40,10 @@ export function HeadlineTiles() {
     let cancelled = false;
     fetch("/api/fx?range=3mo")
       .then(async (r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        if (!r.ok) {
+          const body = (await r.json().catch(() => ({}))) as { error?: string };
+          throw new Error(body.error ?? `HTTP ${r.status}`);
+        }
         return (await r.json()) as FxResponse;
       })
       .then((d) => {

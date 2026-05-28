@@ -78,7 +78,10 @@ export function GoldSignalPanel() {
     // Need 1y to fill the 126-day z-score window AND show 30d chart.
     fetch("/api/gold?range=1y")
       .then(async (r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        if (!r.ok) {
+          const body = (await r.json().catch(() => ({}))) as { error?: string };
+          throw new Error(body.error ?? `HTTP ${r.status}`);
+        }
         return (await r.json()) as GoldResponse;
       })
       .then((d) => {

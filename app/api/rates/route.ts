@@ -3,6 +3,7 @@ import { fetchUs10y, type DailyPoint, type YahooRange } from "@/lib/fetchers";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const preferredRegion = "iad1";
 
 export type RatesResponse = {
   us10y: DailyPoint[];
@@ -24,6 +25,7 @@ export async function GET(req: Request): Promise<NextResponse> {
     return NextResponse.json(body);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "unknown error";
+    console.error("[api/rates] upstream failed:", msg);
     return NextResponse.json({ error: msg }, { status: 502 });
   }
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const preferredRegion = "iad1";
 
 export type ReerPoint = {
   /** Month-end ISO date YYYY-MM-DD. */

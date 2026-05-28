@@ -51,15 +51,16 @@ export function FXContext() {
 
   useEffect(() => {
     let cancelled = false;
+    const readJsonOrError = async <T,>(r: Response, label: string): Promise<T> => {
+      if (!r.ok) {
+        const body = (await r.json().catch(() => ({}))) as { error?: string };
+        throw new Error(`${label}: ${body.error ?? `HTTP ${r.status}`}`);
+      }
+      return (await r.json()) as T;
+    };
     Promise.all([
-      fetch("/api/fx?range=1y").then(async (r) => {
-        if (!r.ok) throw new Error(`fx HTTP ${r.status}`);
-        return (await r.json()) as FxResponse;
-      }),
-      fetch("/api/rates?range=1y").then(async (r) => {
-        if (!r.ok) throw new Error(`rates HTTP ${r.status}`);
-        return (await r.json()) as RatesResponse;
-      }),
+      fetch("/api/fx?range=1y").then((r) => readJsonOrError<FxResponse>(r, "fx")),
+      fetch("/api/rates?range=1y").then((r) => readJsonOrError<RatesResponse>(r, "rates")),
     ])
       .then(([f, r]) => {
         if (cancelled) return;

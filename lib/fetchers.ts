@@ -25,7 +25,16 @@ export type Ticker =
 
 export type YahooRange = "1mo" | "3mo" | "6mo" | "1y" | "2y" | "5y" | "max";
 
-const YAHOO_BASE = "https://query1.finance.yahoo.com/v8/finance/chart";
+/**
+ * Yahoo exposes the same endpoint on two hosts. query1 is the canonical one,
+ * but it 429s or 403s from some datacenter IPs (notably AWS-Lambda in
+ * non-US regions). query2 is the "consent" frontend that's friendlier to
+ * datacenter traffic. We try query1 first, fall back to query2.
+ */
+const YAHOO_HOSTS = [
+  "https://query1.finance.yahoo.com/v8/finance/chart",
+  "https://query2.finance.yahoo.com/v8/finance/chart",
+] as const;
 
 /**
  * Yahoo's chart endpoint returns this (only the shape we use is typed).
@@ -59,21 +68,39 @@ export async function fetchDaily(
   ticker: Ticker,
   range: YahooRange = "1y",
 ): Promise<DailyPoint[]> {
-  const url = `${YAHOO_BASE}/${encodeURIComponent(ticker)}?range=${range}&interval=1d&includePrePost=false&events=div%2Csplit`;
+  const path = `${encodeURIComponent(ticker)}?range=${range}&interval=1d&includePrePost=false&events=div%2Csplit`;
 
-  const res = await fetch(url, {
-    headers: {
-      // Yahoo returns 401 / Edge-blocked HTML to default Node UA; mimic a browser.
-      "User-Agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-      Accept: "application/json,text/plain,*/*",
-    },
-    // Always go to network in route handlers; let callers add caching.
-    cache: "no-store",
-  });
+  // Browser-like headers so Yahoo doesn't reject as a bot.
+  const headers: Record<string, string> = {
+    "User-Agent":
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+    Accept: "application/json,text/plain,*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+    Referer: "https://finance.yahoo.com/",
+    Origin: "https://finance.yahoo.com",
+  };
 
-  if (!res.ok) {
-    throw new Error(`Yahoo HTTP ${res.status} for ${ticker}`);
+  let lastErr: Error | null = null;
+  let res: Response | null = null;
+
+  for (const host of YAHOO_HOSTS) {
+    try {
+      res = await fetch(`${host}/${path}`, {
+        headers,
+        cache: "no-store",
+        // Yahoo can be slow from cold lambdas; bound the wait.
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.ok) break;
+      // Keep last response around to extract a useful error if all hosts fail.
+      lastErr = new Error(`Yahoo HTTP ${res.status} from ${host} for ${ticker}`);
+    } catch (e) {
+      lastErr = e instanceof Error ? e : new Error(String(e));
+    }
+  }
+
+  if (!res || !res.ok) {
+    throw lastErr ?? new Error(`Yahoo unreachable for ${ticker}`);
   }
 
   const json = (await res.json()) as YahooChartResponse;
