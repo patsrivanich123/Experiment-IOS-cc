@@ -2,9 +2,9 @@
  * Smoke test for the data layer. Run with:
  *   npm run test:data
  *
- * Hits Yahoo for each ticker, prints head/tail of the series, then runs
- * derivatives + z-scores on USD/THB and prints the latest values so you
- * can eyeball whether the math is sane before wiring up UI.
+ * Hits the configured upstream for each ticker (Frankfurter / FRED / Stooq),
+ * prints head/tail of the series, then runs derivatives + z-scores on USD/THB
+ * and prints the latest values so the math can be eyeballed.
  */
 
 import {

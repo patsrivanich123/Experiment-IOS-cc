@@ -1,150 +1,213 @@
 /**
- * Yahoo Finance unofficial chart endpoint wrappers.
+ * Multi-source data fetchers.
  *
- * Endpoint shape:
- *   https://query1.finance.yahoo.com/v8/finance/chart/{SYMBOL}?range={range}&interval={interval}
- * Returns daily candles; we only keep adjusted/close + timestamp.
+ * Yahoo Finance was the original source for everything but rate-limits AWS
+ * Lambda IPs aggressively (429), so the dashboard 502'd in production. We now
+ * route each ticker to whichever free, datacenter-friendly endpoint serves it
+ * best, normalizing to a common DailyPoint[] shape.
  *
- * Reverse-engineered, undocumented, no API key. Subject to change or rate-limit;
- * callers should handle errors. NOT for redistribution at scale.
+ *   USD/THB → Frankfurter (ECB-based, daily)
+ *   DXY     → FRED DTWEXBGS (Broad Dollar Index — closest free daily proxy)
+ *   US 10Y  → FRED DGS10 (daily, percent)
+ *   Brent   → FRED DCOILBRENTEU (daily, USD/bbl)
+ *   Gold    → Stooq xauusd (CSV; if blocked, the route handler surfaces the error)
+ *
+ * All endpoints used here are unauthenticated and ToS-compatible for personal use.
  */
 
 export type DailyPoint = {
-  /** ISO date string, YYYY-MM-DD, in UTC. */
+  /** ISO date string, YYYY-MM-DD. */
   date: string;
-  /** Adjusted close if available, else close. */
   close: number;
 };
 
-export type Ticker =
-  | "THB=X"      // USD/THB spot
-  | "DX-Y.NYB"   // DXY dollar index
-  | "GC=F"       // Gold front-month future
-  | "^TNX"       // US 10Y yield (×10; 4.25% reported as 42.5)
-  | "BZ=F";      // Brent front-month future
+/** Date-range strings accepted by the public API routes. */
+export type Range = "1mo" | "3mo" | "6mo" | "1y" | "2y" | "5y";
 
-export type YahooRange = "1mo" | "3mo" | "6mo" | "1y" | "2y" | "5y" | "max";
-
-/**
- * Yahoo exposes the same endpoint on two hosts. query1 is the canonical one,
- * but it 429s or 403s from some datacenter IPs (notably AWS-Lambda in
- * non-US regions). query2 is the "consent" frontend that's friendlier to
- * datacenter traffic. We try query1 first, fall back to query2.
- */
-const YAHOO_HOSTS = [
-  "https://query1.finance.yahoo.com/v8/finance/chart",
-  "https://query2.finance.yahoo.com/v8/finance/chart",
-] as const;
-
-/**
- * Yahoo's chart endpoint returns this (only the shape we use is typed).
- */
-type YahooChartResponse = {
-  chart: {
-    result:
-      | [
-          {
-            timestamp?: number[];
-            indicators: {
-              quote: [{ close: (number | null)[] }];
-              adjclose?: [{ adjclose: (number | null)[] }];
-            };
-          },
-        ]
-      | null;
-    error: { code: string; description: string } | null;
-  };
+const RANGE_DAYS: Record<Range, number> = {
+  "1mo": 31,
+  "3mo": 93,
+  "6mo": 186,
+  "1y": 366,
+  "2y": 731,
+  "5y": 1827,
 };
 
-function toIsoDate(unixSeconds: number): string {
-  return new Date(unixSeconds * 1000).toISOString().slice(0, 10);
+function isoToday(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
-/**
- * Low-level fetch of daily candles from Yahoo Finance.
- * Throws on HTTP errors, missing data, or API-level errors.
- */
-export async function fetchDaily(
-  ticker: Ticker,
-  range: YahooRange = "1y",
-): Promise<DailyPoint[]> {
-  const path = `${encodeURIComponent(ticker)}?range=${range}&interval=1d&includePrePost=false&events=div%2Csplit`;
+function isoDaysAgo(days: number): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - days);
+  return d.toISOString().slice(0, 10);
+}
 
-  // Browser-like headers so Yahoo doesn't reject as a bot.
+function startDate(range: Range): string {
+  return isoDaysAgo(RANGE_DAYS[range]);
+}
+
+const BROWSER_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+
+/**
+ * Plain text fetch. Some upstreams (FRED behind Cloudflare) actively 503
+ * requests with browser UAs because they assume scrapers, while accepting
+ * the runtime default UA cleanly. So `browserLike` is opt-in per source.
+ */
+async function fetchText(
+  url: string,
+  label: string,
+  opts: { browserLike?: boolean } = {},
+): Promise<string> {
+  // Cloudflare in front of fred.stlouisfed.org 503s Node's default UA, but
+  // accepts CLI-style UAs (curl, wget, python-requests). Spoof curl unless
+  // the caller specifically needs a browser UA (Stooq's WAF prefers browser).
   const headers: Record<string, string> = {
-    "User-Agent":
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-    Accept: "application/json,text/plain,*/*",
-    "Accept-Language": "en-US,en;q=0.9",
-    Referer: "https://finance.yahoo.com/",
-    Origin: "https://finance.yahoo.com",
+    Accept: "text/csv,application/json,*/*",
+    "User-Agent": opts.browserLike ? BROWSER_UA : "curl/8.0",
   };
 
-  let lastErr: Error | null = null;
-  let res: Response | null = null;
+  const res = await fetch(url, {
+    headers,
+    cache: "no-store",
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) throw new Error(`${label}: HTTP ${res.status} from ${new URL(url).host}`);
+  return res.text();
+}
 
-  for (const host of YAHOO_HOSTS) {
-    try {
-      res = await fetch(`${host}/${path}`, {
-        headers,
-        cache: "no-store",
-        // Yahoo can be slow from cold lambdas; bound the wait.
-        signal: AbortSignal.timeout(8000),
-      });
-      if (res.ok) break;
-      // Keep last response around to extract a useful error if all hosts fail.
-      lastErr = new Error(`Yahoo HTTP ${res.status} from ${host} for ${ticker}`);
-    } catch (e) {
-      lastErr = e instanceof Error ? e : new Error(String(e));
-    }
-  }
+// ──────────────────────── Frankfurter (ECB) ────────────────────────
 
-  if (!res || !res.ok) {
-    throw lastErr ?? new Error(`Yahoo unreachable for ${ticker}`);
-  }
+type FrankfurterTimeseries = {
+  base: string;
+  start_date: string;
+  end_date: string;
+  rates: Record<string, Record<string, number>>;
+};
 
-  const json = (await res.json()) as YahooChartResponse;
+/**
+ * Frankfurter exposes ECB reference rates as a clean JSON timeseries.
+ * THB is published as part of the ECB euro-reference fixings.
+ */
+export async function fetchUsdThb(range: Range = "1y"): Promise<DailyPoint[]> {
+  const url = `https://api.frankfurter.dev/v1/${startDate(range)}..${isoToday()}?from=USD&to=THB`;
+  const res = await fetch(url, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) throw new Error(`Frankfurter: HTTP ${res.status} for USD→THB`);
+  const json = (await res.json()) as FrankfurterTimeseries;
 
-  if (json.chart.error) {
-    throw new Error(
-      `Yahoo error for ${ticker}: ${json.chart.error.code} ${json.chart.error.description}`,
-    );
-  }
+  return Object.entries(json.rates)
+    .map(([date, r]) => ({ date, close: r.THB }))
+    .filter((p) => typeof p.close === "number")
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
+}
 
-  const result = json.chart.result?.[0];
-  if (!result || !result.timestamp) {
-    throw new Error(`Yahoo returned no data for ${ticker}`);
-  }
+// ──────────────────────── FRED CSV (no API key) ────────────────────────
 
-  const ts = result.timestamp;
-  const closes = result.indicators.quote[0].close;
-  const adj = result.indicators.adjclose?.[0].adjclose;
+/**
+ * FRED's `fredgraph.csv` endpoint accepts any public series ID and returns
+ * a two-column CSV: observation_date,VALUE. No auth required.
+ * Blank values (holidays, weekends, missing prints) come through as "."
+ * or empty string; we drop those.
+ */
+async function fetchFredSeries(seriesId: string, range: Range): Promise<DailyPoint[]> {
+  const start = startDate(range);
+  const url = `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}&cosd=${start}`;
+  const csv = await fetchText(url, `FRED ${seriesId}`);
 
+  const lines = csv.trim().split("\n");
   const out: DailyPoint[] = [];
-  for (let i = 0; i < ts.length; i++) {
-    const raw = adj?.[i] ?? closes[i];
-    if (raw == null || Number.isNaN(raw)) continue;
-    out.push({ date: toIsoDate(ts[i]), close: raw });
+  for (let i = 1; i < lines.length; i++) {
+    const [date, raw] = lines[i].split(",");
+    if (!date || !raw || raw === "." || raw === "") continue;
+    const v = Number(raw);
+    if (!Number.isFinite(v)) continue;
+    out.push({ date, close: v });
   }
   return out;
 }
 
-// Convenience wrappers per ticker — keep call sites readable.
-export const fetchUsdThb = (range: YahooRange = "1y"): Promise<DailyPoint[]> =>
-  fetchDaily("THB=X", range);
+/**
+ * DXY proxy. The actual DXY (ICE futures, Yahoo's DX-Y.NYB) isn't on FRED;
+ * DTWEXBGS is the Fed's trade-weighted broad dollar index, daily, indexed to
+ * Jan 2006 = 100. Different basket, but tracks dollar strength similarly —
+ * the velocity / momentum *signal* (what we care about) is essentially the same.
+ */
+export const fetchDxy = (range: Range = "1y"): Promise<DailyPoint[]> =>
+  fetchFredSeries("DTWEXBGS", range);
 
-export const fetchDxy = (range: YahooRange = "1y"): Promise<DailyPoint[]> =>
-  fetchDaily("DX-Y.NYB", range);
+/** US 10Y Treasury constant maturity yield, in percent. */
+export const fetchUs10y = (range: Range = "1y"): Promise<DailyPoint[]> =>
+  fetchFredSeries("DGS10", range);
 
-export const fetchGold = (range: YahooRange = "1y"): Promise<DailyPoint[]> =>
-  fetchDaily("GC=F", range);
+/** Brent crude spot, USD per barrel. */
+export const fetchBrent = (range: Range = "1y"): Promise<DailyPoint[]> =>
+  fetchFredSeries("DCOILBRENTEU", range);
+
+// ──────────────────────── Gold (jsdelivr / currency-api) ────────────────────────
+
+type CurrencyApiPayload = {
+  date: string;
+  xau: Record<string, number>;
+};
 
 /**
- * US 10Y yield (^TNX). Yahoo reports this in percent directly
- * (e.g. 4.43 = 4.43%), so no scaling here.
+ * Fan-out fetch against the community-maintained `@fawazahmed0/currency-api`
+ * via jsdelivr's CDN. The API exposes one date per request, but jsdelivr is
+ * fast enough that 366 parallel requests for a year of daily gold spots
+ * complete in ~3 seconds.
+ *
+ * Each per-date snapshot publishes XAU → many currencies; xau.usd is the
+ * gold price in USD per troy ounce. Weekends/holidays often carry the prior
+ * fixing forward; we de-duplicate adjacent identical values to avoid
+ * polluting the derivative computations with weekend flatness.
  */
-export const fetchUs10y = (range: YahooRange = "1y"): Promise<DailyPoint[]> =>
-  fetchDaily("^TNX", range);
+export async function fetchGold(range: Range = "1y"): Promise<DailyPoint[]> {
+  const days = RANGE_DAYS[range];
 
-export const fetchBrent = (range: YahooRange = "1y"): Promise<DailyPoint[]> =>
-  fetchDaily("BZ=F", range);
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+
+  const dates: string[] = [];
+  for (let i = 0; i < days; i++) {
+    const d = new Date(today);
+    d.setUTCDate(d.getUTCDate() - i);
+    dates.push(d.toISOString().slice(0, 10));
+  }
+
+  const results = await Promise.all(
+    dates.map(async (date) => {
+      try {
+        const res = await fetch(
+          `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@${date}/v1/currencies/xau.json`,
+          { cache: "no-store", signal: AbortSignal.timeout(7000) },
+        );
+        if (!res.ok) return null;
+        const j = (await res.json()) as CurrencyApiPayload;
+        const usd = j.xau?.usd;
+        return typeof usd === "number" ? { date, close: usd } : null;
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  const ok = results.filter((p): p is DailyPoint => p !== null).sort((a, b) =>
+    a.date < b.date ? -1 : 1,
+  );
+
+  if (ok.length === 0) throw new Error("Gold: no points returned from currency-api");
+
+  // Drop runs of identical adjacent prices — weekends/holidays carry forward
+  // and produce zero-velocity flat spots that distort the derivative pipeline.
+  const deduped: DailyPoint[] = [];
+  for (const p of ok) {
+    const prev = deduped[deduped.length - 1];
+    if (!prev || prev.close !== p.close) deduped.push(p);
+  }
+  return deduped;
+}

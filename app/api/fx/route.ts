@@ -1,22 +1,22 @@
 import { NextResponse } from "next/server";
-import { fetchUsdThb, fetchDxy, type DailyPoint, type YahooRange } from "@/lib/fetchers";
+import { fetchUsdThb, fetchDxy, type DailyPoint, type Range } from "@/lib/fetchers";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-// Pin to US East — Yahoo's endpoints are far more reliable from US IPs than
-// from APAC/EU datacenters.
+// Pin to US East — FRED is US-hosted; Frankfurter is EU but iad1 still hits
+// it fine. Keeps function cold-start placement predictable.
 export const preferredRegion = "iad1";
 
 export type FxResponse = {
   usdThb: DailyPoint[];
   dxy: DailyPoint[];
-  range: YahooRange;
+  range: Range;
   fetchedAt: string;
 };
 
 export async function GET(req: Request): Promise<NextResponse> {
   const url = new URL(req.url);
-  const range = (url.searchParams.get("range") ?? "1y") as YahooRange;
+  const range = (url.searchParams.get("range") ?? "1y") as Range;
 
   try {
     const [usdThb, dxy] = await Promise.all([fetchUsdThb(range), fetchDxy(range)]);

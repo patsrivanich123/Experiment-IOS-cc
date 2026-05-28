@@ -61,8 +61,9 @@ export function Footer() {
         </span>
       </div>
       <div className="mt-2 leading-relaxed">
-        Sources: spot/FX, gold, US 10Y, Brent — Yahoo Finance (unofficial). REER
-        — stub data, BIS integration in v1.1. Not investment advice.
+        Sources: USD/THB — Frankfurter (ECB). DXY proxy / US 10Y / Brent — FRED
+        (St. Louis Fed). Gold (XAU/USD) — currency-api via jsdelivr CDN. REER —
+        stub data, BIS integration in v1.1. Not investment advice.
       </div>
     </footer>
   );
