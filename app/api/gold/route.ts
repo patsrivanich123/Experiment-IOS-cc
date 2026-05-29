@@ -4,6 +4,7 @@ import { fetchGold, type DailyPoint, type Range } from "@/lib/fetchers";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const preferredRegion = "iad1";
+export const maxDuration = 30;
 
 export type GoldResponse = {
   gold: DailyPoint[];

@@ -50,6 +50,20 @@ function startDate(range: Range): string {
 const BROWSER_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
+async function withRetry<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e) {
+    // One immediate retry — Frankfurter / FRED occasionally throw a cold-start
+    // timeout from Vercel that resolves on the next try.
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("timeout") || msg.includes("aborted") || msg.includes("HTTP 5")) {
+      return fn();
+    }
+    throw new Error(`${label}: ${msg}`);
+  }
+}
+
 /**
  * Plain text fetch. Some upstreams (FRED behind Cloudflare) actively 503
  * requests with browser UAs because they assume scrapers, while accepting
@@ -68,13 +82,17 @@ async function fetchText(
     "User-Agent": opts.browserLike ? BROWSER_UA : "curl/8.0",
   };
 
-  const res = await fetch(url, {
-    headers,
-    cache: "no-store",
-    signal: AbortSignal.timeout(8000),
+  return withRetry(label, async () => {
+    const res = await fetch(url, {
+      headers,
+      cache: "no-store",
+      // Bumped from 8s -> 14s. Frankfurter's free tier cold-starts noticeably
+      // and 8s was firing intermittently from Vercel.
+      signal: AbortSignal.timeout(14000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status} from ${new URL(url).host}`);
+    return res.text();
   });
-  if (!res.ok) throw new Error(`${label}: HTTP ${res.status} from ${new URL(url).host}`);
-  return res.text();
 }
 
 // ──────────────────────── Frankfurter (ECB) ────────────────────────
@@ -92,13 +110,15 @@ type FrankfurterTimeseries = {
  */
 export async function fetchUsdThb(range: Range = "1y"): Promise<DailyPoint[]> {
   const url = `https://api.frankfurter.dev/v1/${startDate(range)}..${isoToday()}?from=USD&to=THB`;
-  const res = await fetch(url, {
-    headers: { Accept: "application/json" },
-    cache: "no-store",
-    signal: AbortSignal.timeout(8000),
+  const json = await withRetry("Frankfurter USD→THB", async () => {
+    const res = await fetch(url, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(14000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return (await res.json()) as FrankfurterTimeseries;
   });
-  if (!res.ok) throw new Error(`Frankfurter: HTTP ${res.status} for USD→THB`);
-  const json = (await res.json()) as FrankfurterTimeseries;
 
   return Object.entries(json.rates)
     .map(([date, r]) => ({ date, close: r.THB }))

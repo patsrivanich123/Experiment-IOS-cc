@@ -14,7 +14,7 @@ import type { GoldResponse } from "@/app/api/gold/route";
 import { computeDerivatives } from "@/lib/derivatives";
 import { rollingZ, latestZ } from "@/lib/zscore";
 import { Panel, PanelSkeleton, PanelError } from "./Panel";
-import { deltaColor, fmtNum, fmtSignedNum, shortDate } from "@/lib/format";
+import { deltaColor, fmtNum, fmtSignedNum, shortDate, prettyDate } from "@/lib/format";
 
 type Regime = {
   label: string;
@@ -126,6 +126,7 @@ function Body({ data }: { data: GoldResponse }) {
 
   const latestSmoothed = derivs.smoothed[derivs.smoothed.length - 1]?.value ?? null;
   const last = last30[last30.length - 1]?.close ?? null;
+  const asOf = last30[last30.length - 1]?.date ?? null;
   const first = last30[0]?.close ?? null;
   const pct30 = last != null && first != null ? (last - first) / first : 0;
 
@@ -137,7 +138,7 @@ function Body({ data }: { data: GoldResponse }) {
             {last != null ? fmtNum(last, 1) : "—"}
           </div>
           <div className="mt-1.5 text-[11px] uppercase tracking-wider text-muted-soft">
-            USD per troy ounce
+            {asOf ? `Close on ${prettyDate(asOf)}` : "USD per troy ounce"}
           </div>
         </div>
         <DeltaChip value={pct30} label="30d" />

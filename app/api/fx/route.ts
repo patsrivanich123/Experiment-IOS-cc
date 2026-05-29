@@ -6,6 +6,9 @@ export const revalidate = 0;
 // Pin to US East — FRED is US-hosted; Frankfurter is EU but iad1 still hits
 // it fine. Keeps function cold-start placement predictable.
 export const preferredRegion = "iad1";
+// Frankfurter's free tier cold-starts can run 5-10s; give the function
+// headroom over Vercel's default 10s so a slow upstream + retry still completes.
+export const maxDuration = 30;
 
 export type FxResponse = {
   usdThb: DailyPoint[];

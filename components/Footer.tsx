@@ -69,6 +69,11 @@ export function Footer() {
         )}
       </div>
       <div className="mt-3 leading-relaxed">
+        These are <span className="text-text-dim">daily closing prices</span> —
+        each source publishes the prior trading day&apos;s close some hours after
+        markets close. There won&apos;t be a same-day data point until then.
+      </div>
+      <div className="mt-2 leading-relaxed">
         Data: USD/THB — Frankfurter (ECB) · DXY proxy / 10Y / Brent — FRED · Gold
         — currency-api via jsDelivr · REER — stub.
       </div>

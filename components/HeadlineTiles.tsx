@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { DailyPoint } from "@/lib/fetchers";
 import type { FxResponse } from "@/app/api/fx/route";
 import { Panel, PanelSkeleton, PanelError } from "./Panel";
-import { deltaColor, fmtNum, fmtPct } from "@/lib/format";
+import { deltaColor, fmtNum, fmtPct, prettyDate } from "@/lib/format";
 
 type ChangeSet = {
   spot: number;
@@ -69,6 +69,7 @@ export function HeadlineTiles() {
 function Tiles({ series }: { series: DailyPoint[] }) {
   const c = computeChanges(series);
   if (!c) return <PanelError message="not enough data" />;
+  const asOf = series[series.length - 1]?.date;
 
   return (
     <div>
@@ -78,7 +79,7 @@ function Tiles({ series }: { series: DailyPoint[] }) {
             {fmtNum(c.spot, 3)}
           </div>
           <div className="mt-2 text-[11px] uppercase tracking-wider text-muted-soft">
-            Thai Baht per US Dollar
+            {asOf ? `Close on ${prettyDate(asOf)}` : "Thai Baht per US Dollar"}
           </div>
         </div>
         <Chip value={c.d1} label="1d" big />
@@ -90,6 +91,7 @@ function Tiles({ series }: { series: DailyPoint[] }) {
     </div>
   );
 }
+
 
 function Chip({ value, label, big }: { value: number; label: string; big?: boolean }) {
   const positive = value > 0;
